@@ -14,6 +14,7 @@ import ConfigParser
 import gevent
 import time
 import hashlib
+import binascii
 
 import six
 md5_constructor = hashlib.md5
@@ -76,6 +77,17 @@ parser.add_argument('-o','--timeout',
     default=5, 
     help='socket timeout')
 
+def _decode_attr(dict,key,value):
+    if dict.has_key(key):
+        typ = dict[key].type
+        if typ == 'integer':
+            value = int(value)
+        elif typ == 'octets':
+            value = binascii.hexlify(value)    
+        elif typ == 'string':  
+            value = value.decode('utf-8')
+        return value     
+
 
 class TestClient():
     def __init__(self,argvals):
@@ -122,7 +134,7 @@ class TestClient():
                             print "code:%s" % resp.code
                             print ("Attributes: ")        
                             for attr in attr_keys:
-                                print ( "%s: %s" % (attr, resp[attr][0]))
+                                print ( "%s: %s" % (attr, _decode_attr(self.dict,attr,resp[attr][0])))
                         except Exception as e:
                             print 'error %s'%str(e)
             except socket.timeout:
@@ -150,7 +162,7 @@ class TestClient():
             print ("send an authentication request")
             print ("Attributes: ")        
             for attr in attr_keys:
-                print ( u"%s: %s" % (attr, req[attr]))    
+                print ( "%s: %s" % (attr, _decode_attr(self.dict,attr,req[attr][0])))  
 
         self.sock.sendto(req.RequestPacket(),(self.server,self.authport)) 
     
@@ -172,7 +184,7 @@ class TestClient():
             print ("send an accounting request")
             print ("Attributes: ")        
             for attr in attr_keys:
-                print ( u"%s: %s" % (attr, req[attr]))            
+                print ( "%s: %s" % (attr, _decode_attr(self.dict,attr,req[attr][0])))            
         
         self.sock.sendto(req.RequestPacket(),(self.server,self.acctport)) 
 
@@ -210,7 +222,9 @@ class AuthPacket2(AuthPacket):
 
 
 if __name__ == '__main__':
-    args =  parser.parse_args(sys.argv[1:])
+    _args = sys.argv
+    _args = _args[_args.index(__file__)+1:]
+    args =  parser.parse_args(_args)
     print args
     if  args.auth or args.acct:
         client = TestClient(args)
