@@ -197,8 +197,14 @@ class AuthPacket2(AuthPacket):
         if not self.id:
             self.id = self.CreateID()
         if isinstance(password, six.text_type):
-            password = password.encode('utf-8')
-        return md5_constructor("%s%s%s"%(self.id,password,self.authenticator)).digest()
+            password = password.strip().encode('utf-8')
+
+        result = six.b(chr(self.id))
+
+        _pwd =  md5_constructor("%s%s%s"%(chr(self.id),password,self.authenticator)).digest()
+        for i in range(16):
+            result += _pwd[i]
+        return result
 
 
 
