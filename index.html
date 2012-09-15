@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>RadiusTester by jamiesun</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>RadiusTester</h1>
+        <p>radius test client tools</p>
+        <p class="view"><a href="https://github.com/jamiesun/RadiusTester">View the Project on GitHub <small>jamiesun/RadiusTester</small></a></p>
+        <ul>
+          <li><a href="https://github.com/jamiesun/RadiusTester/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/jamiesun/RadiusTester/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/jamiesun/RadiusTester">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>RadiusTester</h1>
+
+<h2>runtime environment</h2>
+
+<p><a href="http://python.org/">python2.7+</a></p>
+
+<p><a href="https://github.com/wichert/pyrad">pyrad2.0</a></p>
+
+<p><a href="https://github.com/SiteSupport/gevent">gevent1.0</a></p>
+
+<h2>usage</h2>
+
+<pre><code>tester.py [-h] [--auth [AUTH]] [--acct {start,stop,update,on,off}]
+                 [-u USERNAME] [-p PASSWORD] [-e {pap,chap}] [-n REQUESTS]
+                 [-d [DEBUG]] [-o TIMEOUT]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --auth [AUTH]         radius auth test
+  --acct {start,stop,update,on,off}
+                        radius acct test
+  -u USERNAME, --username USERNAME
+                        radius auth username
+  -p PASSWORD, --password PASSWORD
+                        radius auth password
+  -e {pap,chap}, --encrypt {pap,chap}
+                        radius auth password encrypt type
+  -n REQUESTS, --requests REQUESTS
+                        request number
+  -d [DEBUG], --debug [DEBUG]
+                        is debug
+  -o TIMEOUT, --timeout TIMEOUT
+                        socket timeout
+</code></pre>
+
+<h3>authenticator test：</h3>
+
+<blockquote>
+<p>tester.py --auth -u testname -p 123456 -n 10000 -d -e chap</p>
+</blockquote>
+
+<h3>acctounting test :</h3>
+
+<blockquote>
+<p>tester.py --acct start -d</p>
+</blockquote>
+
+<h2>packet attrs config</h2>
+
+<p>Modify the configuration file tester.cfg</p>
+
+<pre><code>[server]
+host = 192.168.8.122
+authport = 1812
+acctport = 1813
+authsecret = secret
+acctsecret = secret
+
+[auth_attrs]
+NAS-IP-Address = 192.168.8.122
+Calling-Station-Id = 00-01-24-80-B3-9C
+
+
+
+[acct_attrs]
+NAS-IP-Address = 192.168.8.122
+NAS-Port = 0
+NAS-Identifier = trillian
+Called-Station-Id = 00-04-5F-00-0F-D1
+Calling-Station-Id = 00-01-24-80-B3-9C
+Framed-IP-Address = 192.168.8.122
+
+
+[acct_attrs_start]
+
+
+[acct_attrs_stop]
+Acct-Input-Octets = 772138064
+Acct-Output-Octets = 786765986
+Acct-Session-Time = 3600
+Acct-Terminate-Cause = 1
+
+[acct_attrs_update]
+Acct-Input-Octets = 772138064
+Acct-Output-Octets = 786765986
+Acct-Session-Time = 3600
+Acct-Terminate-Cause = 1
+
+[acct_attrs_on]
+
+[acct_attrs_off]
+</code></pre>
+      </section>
+    </div>
+    <footer>
+      <p>Project maintained by <a href="https://github.com/jamiesun">jamiesun</a></p>
+      <p>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></p>
+    </footer>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-33313432-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
