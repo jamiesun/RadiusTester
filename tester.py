@@ -3,9 +3,9 @@
 
 '''radius test client tools'''
 from gevent import monkey
-monkey.patch_all()
+# monkey.patch_all()
 import argparse,sys
-import socket
+from gevent import socket
 from pyrad import packet
 from pyrad.dictionary import Dictionary
 from pyrad.packet import AuthPacket
@@ -224,7 +224,7 @@ class AuthPacket2(AuthPacket):
 if __name__ == '__main__':
     _args = sys.argv
     _args = _args[_args.index(__file__)+1:]
-    args =  parser.parse_args(_args)
+    args =  parser.parse_args(sys.argv[1:])
     print args
     if  args.auth or args.acct:
         client = TestClient(args)
