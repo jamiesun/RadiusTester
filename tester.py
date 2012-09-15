@@ -122,7 +122,7 @@ class TestClient():
                             print "code:%s" % resp.code
                             print ("Attributes: ")        
                             for attr in attr_keys:
-                                print ( "%s: %s" % (attr, resp[attr]))
+                                print ( "%s: %s" % (attr, resp[attr][0]))
                         except Exception as e:
                             print 'error %s'%str(e)
             except socket.timeout:
@@ -142,15 +142,18 @@ class TestClient():
             req["CHAP-Password"] = req.ChapEcrypt(self.argvals.password)
         else:
             req["User-Password"] = req.PwCrypt(self.argvals.password)
-        for opt in  self.config.options("auth_attrs"):
-            req[opt] = self.config.get('auth_attrs',opt)         
-        self.sock.sendto(req.RequestPacket(),(self.server,self.authport)) 
+        for _key in  self.config.options("auth_attrs"):
+            req[_key] = self._get_val('auth_attrs',_key)
+
         if self.argvals.debug:
             attr_keys = req.keys()
             print ("send an authentication request")
             print ("Attributes: ")        
             for attr in attr_keys:
-                print ( "%s: %s" % (attr, req[attr]))        
+                print ( u"%s: %s" % (attr, req[attr]))    
+
+        self.sock.sendto(req.RequestPacket(),(self.server,self.authport)) 
+    
 
     def sendacct(self):
         req = packet.AcctPacket(dict=self.dict,secret=self.acctsecret)
@@ -163,14 +166,16 @@ class TestClient():
         _attrs_key = "acct_attrs_%s"%self.argvals.acct
         for _key in  self.config.options(_attrs_key):
             req[_key] = self._get_val(_attrs_key,_key)
-        
-        self.sock.sendto(req.RequestPacket(),(self.server,self.acctport)) 
+
         if self.argvals.debug:
             attr_keys = req.keys()
             print ("send an accounting request")
             print ("Attributes: ")        
             for attr in attr_keys:
-                print ( "%s: %s" % (attr, req[attr]))
+                print ( u"%s: %s" % (attr, req[attr]))            
+        
+        self.sock.sendto(req.RequestPacket(),(self.server,self.acctport)) 
+
 
     def _get_val(self,opts,key):
         if self.dict.has_key(key):
