@@ -247,7 +247,7 @@ class TesterWin(QtGui.QMainWindow,form_class):
                     if self.is_debug.isChecked():
                         self.logger(u"\nsend an authentication request to %s"%self.server)
                         self.log_packet(authreq)
-                    gevent.socket.wait_write( sock.fileno(), timeout=0.9 )
+                    gevent.socket.wait_write( rsock.fileno(), timeout=0.9 )
                     rsock.sendto(authreq.RequestPacket(),(self.server,self.authport))
 
                     ips = ipset.difference(self.ooline_ips)
@@ -268,7 +268,7 @@ class TesterWin(QtGui.QMainWindow,form_class):
                     if  self.is_debug.isChecked():
                         self.logger("\nsend an accounting start request")
                         self.log_packet(acctreq)
-                    gevent.socket.wait_write( sock.fileno(), timeout=0.9 )
+                    gevent.socket.wait_write( rsock.fileno(), timeout=0.9 )
                     rsock.sendto(acctreq.RequestPacket(),(self.server,self.acctport))
                     user["is_online"] = True
                 else:
@@ -280,7 +280,7 @@ class TesterWin(QtGui.QMainWindow,form_class):
                     if  self.is_debug.isChecked():
                         self.logger("\nsend an accounting stop request")
                         self.log_packet(acctreq)
-                    gevent.socket.wait_write( sock.fileno(), timeout=0.9 )
+                    gevent.socket.wait_write( rsock.fileno(), timeout=0.9 )
                     rsock.sendto(acctreq.RequestPacket(),(self.server,self.acctport))
                     user["is_online"] = False
                     self.ooline_ips.remove(user.get("ipaddr"))
@@ -348,6 +348,12 @@ class TesterWin(QtGui.QMainWindow,form_class):
                 if lasttime - stat_time > 1:
                     self.logger( "\nCurrent received %s response" % _times )
                     stat_time = lasttime
+
+                    sectimes = lasttime - starttime
+                    if times > 1:
+                        percount = reply / sectimes
+                        self.logger( "\nStat - Cast time (sec):%s, total:%s, errors:%s, reqs/sec:%s" % (round( sectimes, 4 ),reply,_errors,percount ))
+
                 # print logging
                 try:
                     if self.is_debug.isChecked():
