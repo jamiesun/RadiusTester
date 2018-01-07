@@ -21,6 +21,10 @@ import uuid
 import random
 import logging
 
+from gevent.pool import Pool
+
+pool = Pool(100)
+
 md5_constructor = hashlib.md5
 
 status_vars = {'start':1,'stop':2,'update':3,'on':7,'off':8}
@@ -31,8 +35,6 @@ for i in range(255):
     ipaddrs += ["192.169.%s.%s"% (i, ip) for ip in range(1,255) ]
 
 ipset = set(ipaddrs)
-
-
 
 class AuthPacket2(AuthPacket):
     def __init__(self, code=AccessRequest, id=None, secret=six.b(''),
@@ -91,22 +93,11 @@ class TesterWin(QtGui.QMainWindow,form_class):
                 _user = dict(user_name=_props[0].strip(),passwd=_props[1].strip())
                 self.testusers[_props[0]] = _user
 
-
-    def get_clients(self,times):
-        snum = times/100 or 1
-        def newsock():
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,819200)
-            # sock.settimeout(self.timeout.value())
-            sock.setblocking(0)
-            return sock
-        return [newsock() for i in range(snum)]
-
-    def get_random_client(self):
+    def get_udp_client(self):
         rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         rsock.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,819200)
-        # rsock.settimeout(self.timeout.value())
-        rsock.setblocking( 0 )
+        rsock.settimeout(self.timeout.value())
+        # rsock.setblocking( 0 )
         return rsock
 
     def init_config(self):
@@ -216,25 +207,59 @@ class TesterWin(QtGui.QMainWindow,form_class):
                     req[attr_name] = val
         return req
 
-    def sendauth(self,sock,req):
+    def sendauth(self,req, que):
         if self.is_debug.isChecked():
             self.logger(u"\nsend an authentication request to %s"%self.server)
             self.log_packet(req)
-        gevent.socket.wait_write( sock.fileno(), timeout=0.9 )
-        sock.sendto(req.RequestPacket(),(self.server,self.authport))
-        gevent.sleep( random.choice( [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9] ) )
 
+        while self.running:
+            sock = self.get_udp_client()
+            try:
+                gevent.socket.wait_write(sock.fileno(), timeout=self.timeout.value())
+                sock.sendto(req.RequestPacket(), (self.server, self.authport))
+                que.put_nowait('sendreq')
+                gevent.socket.wait_read(sock.fileno(), timeout=self.timeout.value())
+                msg, addr = sock.recvfrom(8192)
+                if msg:
+                    que.put_nowait(msg)
+                    # gevent.sleep(0)
+                    break
+            except Exception as err:
+                que.put_nowait(err)
+                logging.error(err)
+                # gevent.sleep(1)
+            finally:
+                try:
+                    sock.close()
+                except Exception as err:
+                    self.logger("auth socket close error %s" % repr(err))
 
-    def sendacct(self,sock):
+    def sendacct(self, que):
         req = self.build_acct_request()
         req['Acct-Status-Type'] = self.get_acct_type()
-        if  self.is_debug.isChecked():
+        if self.is_debug.isChecked():
             self.logger("\nsend an accounting request")
             self.log_packet(req)
-        gevent.socket.wait_write(sock.fileno(),timeout=0.9)
-        sock.sendto(req.RequestPacket(),(self.server,self.acctport))
-        gevent.sleep( random.choice( [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9] ) )
-
+        while self.running:
+            sock = self.get_udp_client()
+            try:
+                gevent.socket.wait_write(sock.fileno(), timeout=0.9)
+                sock.sendto(req.RequestPacket(), (self.server, self.acctport))
+                que.put('sendreq')
+                gevent.socket.wait_read(sock.fileno(), timeout=self.timeout.value())
+                msg, addr = sock.recvfrom(8192)
+                if msg:
+                    que.put_nowait(msg)
+                    # gevent.sleep(0)
+                    break
+            except Exception as err:
+                que.put_nowait(err)
+                logging.error("err")
+            finally:
+                try:
+                    sock.close()
+                except Exception as err:
+                    self.logger("auth socket close error %s" % repr(err))
 
     def random_onoff(self,rsock):
         while self.random_running:
@@ -332,32 +357,41 @@ class TesterWin(QtGui.QMainWindow,form_class):
         stat_time = _init_time
         lasttime = _init_time
         reply = 0
-        _times = 0
+        _sendreqs = 0
         _errors = 0
+        _timeouts = 0
         while self.running:
             try:
-                if _times == times:
+                if reply == times:
                     break
                 msg = que.get()
-                if isinstance(msg,Exception):
+                is_radius_reply = False
+                if isinstance(msg, socket.timeout):
+                    _timeouts += 1
+                elif isinstance(msg,Exception):
                     _errors += 1
+                elif msg == 'sendreq':
+                    _sendreqs += 1
                 else:
+                    is_radius_reply = True
                     reply += 1
 
                 lasttime = time.time()
-                if lasttime - stat_time > 1:
-                    self.logger( "\nCurrent received %s response" % _times )
+                if lasttime - stat_time >= 3:
                     stat_time = lasttime
-
                     sectimes = lasttime - starttime
-                    if times > 1:
-                        percount = reply / sectimes
-                        self.logger( "\nStat - Cast time (sec):%s, total:%s, errors:%s, reqs/sec:%s" % (round( sectimes, 4 ),reply,_errors,percount ))
+                    percount = reply / sectimes
+                    self.logger("\n\nCast time total (sec):%s" % round(sectimes, 4))
+                    self.logger("Send requests total:%s" % _sendreqs)
+                    self.logger("Received response total:%s" % reply)
+                    self.logger("Send timeouts:%s" % _timeouts)
+                    self.logger("Send errors:%s" % _errors)
+                    self.logger("Request per second:%s" % int(percount))
 
                 # print logging
                 try:
-                    if self.is_debug.isChecked():
-                        resp = packet.Packet( packet=msg, dict=self.dict )
+                    if self.is_debug.isChecked() and is_radius_reply:
+                        resp = packet.Packet( packet=msg, dict=self.dict)
                         attr_keys = resp.keys()
                         self.logger( "\nReceived an response:" )
                         self.logger( "id:%s" % resp.id )
@@ -367,10 +401,8 @@ class TesterWin(QtGui.QMainWindow,form_class):
                             self.logger( ":::: %s: %s" % (attr, self.decode_attr( attr, resp[attr][0] )) )
                 except Exception as e:
                     self.logger( '\nparse resp error %s' % repr( e ) )
-                _times += 1
             except Exception as err:
                 _errors += 1
-                _times += 1
                 self.logger( '\nstat error %s' % repr( err ) )
 
             gevent.sleep( 0 )
@@ -379,37 +411,16 @@ class TesterWin(QtGui.QMainWindow,form_class):
         sectimes = lasttime - starttime
         if times > 1:
             percount = reply / sectimes
-            self.logger( "\nTotal time (sec):%s" % round( sectimes, 4 ) )
-            self.logger( "response total:%s" % reply )
-            self.logger( "response errors:%s" % _errors )
-            self.logger( "request per second:%s" % percount )
+            self.logger("\n\nCast time total (sec):%s" % round(sectimes, 4))
+            self.logger("Send requests total:%s" % _sendreqs)
+            self.logger("Received response total:%s" % reply)
+            self.logger("Send timeouts:%s" % _timeouts)
+            self.logger("Send errors:%s" % _errors)
+            self.logger("Request per second:%s" % int(percount))
 
         self.stop()
 
-
-    def on_recv(self,sock,que):
-        timeout = self.timeout.value()
-        gevent.sleep( 0.1 )
-        while self.running:
-            try:
-                gevent.socket.wait_read( sock.fileno(), timeout=timeout )
-                msg, addr = sock.recvfrom(8192)
-                if msg:
-                    que.put_nowait(msg)
-                gevent.sleep( 0 )
-            except Exception as err:
-                que.put_nowait( err )
-                logging.exception("err")
-                # self.logger( "recv error %s"% repr(err))
-                gevent.sleep( 0 )
-                continue
-        try:
-            sock.close()
-        except Exception as err:
-            self.logger("socket clost error %s" % err)
-
-
-    def run(self,socks,statque,times):
+    def run(self,statque,times):
         if self.running:
             return
 
@@ -420,9 +431,7 @@ class TesterWin(QtGui.QMainWindow,form_class):
         self.send_auth_cmd.setEnabled(False) 
         self.send_acct_cmd.setEnabled(False)               
         self.running = True
-        gevent.spawn(self.on_stat,statque,times)
-        for sock in socks:
-            gevent.spawn(self.on_recv,sock,statque)
+        pool.spawn(self.on_stat,statque,times)
 
     def stop(self):
         self.running = False     
@@ -453,33 +462,27 @@ class TesterWin(QtGui.QMainWindow,form_class):
     def on_send_auth_cmd_clicked(self):
         from itertools import cycle
         times = self.auth_times.value()
-        socks = self.get_clients(times)
-        csocks = cycle( socks )
-        self.logger("Start socket num: %s"% len(socks))
         statque = Queue()
-        self.run(socks,statque,times)
+        self.run(statque,times)
         req = self.build_auth_request()
         for _ in xrange(times):
             app.processEvents()
             if not self.running:
-                break            
-            gevent.spawn(self.sendauth,next(csocks),req)
+                break
+            pool.spawn(self.sendauth, req, statque)
 
 
     @QtCore.pyqtSlot()
     def on_send_acct_cmd_clicked(self):
         from itertools import cycle
         times = self.acct_times.value()
-        socks = self.get_clients(times)
-        csocks = cycle(socks)
-        self.logger( "Start socket num: %s" % len( socks ) )
         statque = Queue()
-        self.run(socks,statque,times)
+        self.run(statque,times)
         for _ in xrange(times):
             app.processEvents()
             if not self.running:
                 break
-            gevent.spawn(self.sendacct,next(csocks))
+            pool.spawn(self.sendacct, statque)
 
     @QtCore.pyqtSlot()
     def on_random_test_start_clicked(self):
@@ -489,7 +492,7 @@ class TesterWin(QtGui.QMainWindow,form_class):
             self.logger(u"即将开始随机测试")      
             self.random_running = True
             for _ in range(rand_nums):
-                rsock = self.get_random_client()
+                rsock = self.get_udp_client()
                 gevent.spawn(self.random_onoff,rsock)
                 gevent.spawn(self.on_random_recv,rsock)
         self.random_test_start.setEnabled(False)
