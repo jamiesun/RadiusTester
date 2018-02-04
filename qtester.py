@@ -78,7 +78,7 @@ class TesterWin(QtGui.QMainWindow,form_class):
         self.random_running = False
         self.testusers = {}
         self.setupUi(self)
-        self.dict=Dictionary("./dict/dictionary")
+        self.dict=Dictionary("./dictionarys/dictionary")
         self.init_testusers()
         self.settings = QtCore.QSettings( 'ToughRADIUS', 'tester' )
         self.init_config()
